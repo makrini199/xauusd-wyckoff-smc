@@ -96,9 +96,14 @@ def _htf_to_exec(trend: pd.Series, tf: str, exec_close: pd.DatetimeIndex) -> np.
 
 
 class Engine:
-    def __init__(self, df: pd.DataFrame, cfg: Config | None = None):
+    def __init__(self, df: pd.DataFrame, cfg: Config | None = None, dxy: pd.DataFrame | None = None):
         self.cfg = cfg = cfg or Config()
         self.x = enrich(resample(df, cfg.tf_exec), cfg)
+        # Ratio oro / dólar para la prueba 8 (None si no hay datos del DXY)
+        self.ratio = None
+        if dxy is not None and len(dxy):
+            d = resample(dxy, cfg.tf_exec)["close"].reindex(self.x.index, method="ffill")
+            self.ratio = (self.x["close"] / d).to_numpy()
         bias = enrich(resample(df, cfg.tf_bias), cfg)
         ctx = enrich(resample(df, cfg.tf_context), cfg)
         close_t = self.x.index + pd.Timedelta(cfg.tf_exec)
@@ -200,9 +205,9 @@ class Engine:
             "rsi_volume": self._rsi_div(origin, d, t) or self.rvol[t] >= cfg.vol_high,
             "_phase": ph,
         }
-        tests = wk.nine_tests(r, d, t, self.st, self.x, cfg)
+        tests = wk.nine_tests(r, d, t, self.st, self.x, cfg, self.wy.ranges, self.ratio)
         if system == "B":
-            ok = sum(1 for v in tests.values() if v)
+            ok = sum(1 for k, v in tests.items() if not k.startswith("_") and v)
             if ok < cfg.wyckoff_tests_min_b:
                 self._reject(t, f"Sistema B: {ok} pruebas Wyckoff < {cfg.wyckoff_tests_min_b}",
                              direction=d, system=system)
@@ -408,5 +413,5 @@ class Engine:
         self.rm.on_close(tr.pnl, tr.pnl < 0)
 
 
-def run_backtest(df: pd.DataFrame, cfg: Config | None = None) -> Result:
-    return Engine(df, cfg).run()
+def run_backtest(df: pd.DataFrame, cfg: Config | None = None, dxy: pd.DataFrame | None = None) -> Result:
+    return Engine(df, cfg, dxy).run()

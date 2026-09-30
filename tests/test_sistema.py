@@ -230,3 +230,71 @@ def test_entradas_con_confirmacion_son_coherentes():
         assert bar_open <= tr.entry_time < bar_open + pd.Timedelta(cfg.tf_exec)
         assert s.confirm_time == tr.entry_time
         assert (tr.entry - s.confirm_level) * tr.direction > 0
+
+
+# --- Pruebas 1 (punto y figura) y 8 (fuerza relativa) ------------------------
+from xauusd.pf import check_objective, check_relative_strength, pf_columns  # noqa: E402
+from xauusd.wyckoff import TradingRange  # noqa: E402
+
+
+def test_punto_y_figura_columnas():
+    # Sube 10 cajas, baja 5, sube 4: X, O, X (reversión de 3)
+    prices = [100, 110, 105, 109]
+    cols = pf_columns(prices, prices, box=1.0, reversal=3)
+    assert [c.direction for c in cols] == [+1, -1, +1]
+    assert cols[0].top == 110 and cols[1].bottom == 105 and cols[2].top == 109
+
+
+def test_punto_y_figura_ignora_retrocesos_menores_que_la_reversion():
+    prices = [100, 110, 108.5, 112]
+    cols = pf_columns(prices, prices, box=1.0, reversal=3)
+    assert len(cols) == 1 and cols[0].top == 112
+
+
+def _df_const_atr(highs, lows, atr=1.0):
+    idx = pd.date_range("2024-01-01", periods=len(highs), freq="15min", tz="UTC")
+    return pd.DataFrame({"high": highs, "low": lows, "atr": atr}, index=idx)
+
+
+@pytest.mark.parametrize("suelo, cumplido", [(70, False), (45, True)])
+def test_prueba_1_objetivo_bajista(suelo, cumplido):
+    cfg = Config(pf_box_atr=1.0, pf_reversal=3)
+    # Distribución (velas 0-19) oscilando entre 100 y 106, caída y acumulación en `suelo`
+    dist = [100, 106, 100, 106, 100] * 4
+    fall = list(np.linspace(100, suelo, 20))
+    acc = [suelo + 2, suelo + 5, suelo + 1, suelo + 4, suelo + 2] * 4
+    p = np.array(dist + fall + acc, dtype=float)
+    df = _df_const_atr(p, p)
+    prev = TradingRange(0, 19, 100, 106, "distribucion", True, end=19, breakout=-1)
+    cur = TradingRange(40, 45, suelo + 1, suelo + 5, "acumulacion", True)
+    ok, obj = check_objective(cur, +1, 59, [prev, cur], df, cfg)
+    ncols = len(pf_columns(p[:20], p[:20], 1.0, 3))
+    assert obj == pytest.approx(100 - ncols * 3)  # soporte − columnas × caja × reversión
+    assert ok is cumplido
+
+
+def test_prueba_1_no_evaluable_sin_rango_previo():
+    cfg = Config()
+    p = np.linspace(100, 90, 60)
+    df = _df_const_atr(p, p)
+    cur = TradingRange(30, 59, 89, 92, "acumulacion", True)
+    assert check_objective(cur, +1, 59, [cur], df, cfg) == (None, None)
+
+
+def test_prueba_8_fuerza_relativa():
+    r = TradingRange(0, 10, 0, 1, "acumulacion", False)
+    subiendo = np.linspace(1.0, 1.1, 50)
+    assert check_relative_strength(r, +1, 49, subiendo) is True
+    assert check_relative_strength(r, -1, 49, subiendo) is False
+    assert check_relative_strength(r, +1, 49, None) is None
+
+
+def test_backtest_con_dxy_evalua_la_prueba_8():
+    cfg = Config(threshold_a=5, threshold_b=6, wyckoff_tests_min_b=2, min_rr=2)
+    gold = synthetic(40_000, seed=3)
+    dxy = synthetic(40_000, seed=11)
+    dxy[["open", "high", "low", "close"]] = dxy[["open", "high", "low", "close"]] / 20  # ~100
+    res = run_backtest(gold, cfg, dxy)
+    vals = [tr.setup.wyckoff_tests.get("8_fuerza_relativa") for tr in res.trades
+            if tr.setup.range_ is not None]
+    assert vals and all(v is not None for v in vals)

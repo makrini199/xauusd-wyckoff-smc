@@ -234,15 +234,22 @@ def phase(r: TradingRange | None, direction: int, t: int, trend: int, bos_count:
     return ("?", False)
 
 
-def nine_tests(r: TradingRange | None, direction: int, t: int, st, df: pd.DataFrame, cfg: Config) -> dict:
+def nine_tests(r: TradingRange | None, direction: int, t: int, st, df: pd.DataFrame, cfg: Config,
+               ranges=None, ratio=None) -> dict:
     """Las nueve pruebas (acumulación; en espejo para distribución).
 
-    Devuelve {nombre: True/False/None}; None = no evaluable con estos datos.
+    Devuelve {nombre: True/False/None}; None = no evaluable con estos datos
+    (prueba 1 sin rango previo que contar, prueba 8 sin datos del dólar).
     """
-    res: dict[str, bool | None] = {
-        "1_objetivo_previo_cumplido": None,  # requiere conteo punto y figura
-        "8_fuerza_relativa": None,           # requiere DXY u otro índice
-    }
+    from .pf import check_objective, check_relative_strength
+
+    res: dict[str, bool | None] = {}
+    if r is not None:
+        res["1_objetivo_previo_cumplido"], res["_objetivo_pf"] = check_objective(
+            r, direction, t, ranges or [], df, cfg)
+    else:
+        res["1_objetivo_previo_cumplido"], res["_objetivo_pf"] = None, None
+    res["8_fuerza_relativa"] = check_relative_strength(r, direction, t, ratio)
     if r is None:
         for k in ("2_eventos_PS_SC_ST", "3_actividad_rango", "4_estructura_previa_rota",
                   "5_soportes_crecientes", "6_spring_o_test", "7_maximos_minimos_crecientes",

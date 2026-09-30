@@ -35,6 +35,10 @@ def trades_frame(res: Result) -> pd.DataFrame:
             "nivel_mini_bos": round(s.confirm_level, 2) if s.confirm_level is not None else None,
             "motivo_salida": tr.exit_reason,
             **{f"ok_{k}": bool(tr.checks.get(k)) for k in LABELS},
+            "pruebas_wyckoff_ok": sum(1 for k, v in s.wyckoff_tests.items() if not k.startswith("_") and v),
+            "objetivo_pf": (round(s.wyckoff_tests["_objetivo_pf"], 2)
+                            if s.wyckoff_tests.get("_objetivo_pf") is not None else None),
+            **{f"prueba_{k}": s.wyckoff_tests[k] for k in sorted(s.wyckoff_tests) if not k.startswith("_")},
         })
     return pd.DataFrame(rows)
 

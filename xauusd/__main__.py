@@ -20,6 +20,7 @@ def main(argv=None):
     src = b.add_mutually_exclusive_group(required=True)
     src.add_argument("--data", help="CSV de dukascopy-node (timestamp, open, high, low, close, volume)")
     src.add_argument("--sintetico", action="store_true", help="usa datos sintéticos (solo para probar)")
+    b.add_argument("--dxy", help="CSV del índice dólar (mismo formato) para la prueba 8 de Wyckoff")
     b.add_argument("--desde", help="fecha inicial, p. ej. 2024-01-01")
     b.add_argument("--hasta", help="fecha final")
     b.add_argument("--out", default="resultados")
@@ -42,7 +43,8 @@ def main(argv=None):
         df = df[df.index >= a.desde]
     if a.hasta:
         df = df[df.index < a.hasta]
-    res = run_backtest(df, cfg)
+    dxy = load_csv(a.dxy) if a.dxy else None
+    res = run_backtest(df, cfg, dxy)
     s = write(res, a.out)
     if a.graficos:
         plot_all(res, a.out, a.graficos)

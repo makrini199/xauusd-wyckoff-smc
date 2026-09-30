@@ -6,4 +6,6 @@ DESDE="${1:-2024-01-01}"
 HASTA="${2:-2024-12-31}"
 mkdir -p data
 npx --yes dukascopy-node -i xauusd -from "$DESDE" -to "$HASTA" -t m1 -f csv -v -dir data
-echo "Datos guardados en data/"
+# Índice dólar (DXY) para la prueba 8 de Wyckoff (fuerza relativa del oro frente al dólar)
+npx --yes dukascopy-node -i dollaridxusd -from "$DESDE" -to "$HASTA" -t m1 -f csv -v -dir data/dxy
+echo "Datos guardados en data/ (oro) y data/dxy/ (índice dólar)"

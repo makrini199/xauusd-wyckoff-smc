@@ -43,6 +43,10 @@ class Config:
     spring_test_vol_ratio: tuple = (0.4, 0.6)  # test con 40-60% menos volumen
     spring_test_vol_lookback: int = 25  # tercio bajo de volumen de las últimas 20-30
 
+    # --- Pruebas 1 y 8 --------------------------------------------------------
+    pf_box_atr: float = 0.5       # caja del punto y figura = 0.5 × ATR mediano del rango
+    pf_reversal: int = 3          # reversión clásica de 3 cajas
+
     # --- Order blocks y FVG ------------------------------------------------
     ob_max_touches: int = 3       # a partir de 3 toques, OB débil
     fvg_min_atr: float = 0.2      # tamaño mínimo del hueco en ATR

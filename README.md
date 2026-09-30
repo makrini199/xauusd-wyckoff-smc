@@ -69,7 +69,7 @@ Flujo por cada vela de ejecución (15 min por defecto), sin mirar al futuro:
 
    Con `--sin-confirmacion` se vuelve a la orden límite directa en el POI.
 6. **Sistema A o B.** A si la ruptura va a favor del sesgo 4H. B si va en
-   contra, y además exige al menos 5 de las pruebas Wyckoff evaluables.
+   contra, y además exige al menos 5 de las nueve pruebas Wyckoff.
 7. **Puntaje** (`scoring.py`). Se calcula en el momento de la entrada. Umbral: 12/17
    (A) o 14/17 (B). Riesgo del 0.5%, o del 1% por encima de 16.
 8. **Riesgo** (`risk.py`):
@@ -81,6 +81,34 @@ Flujo por cada vela de ejecución (15 min por defecto), sin mirar al futuro:
 9. **Gestión.** En TP1 se cierra el 50% y el stop pasa a break-even. El resto
    corre con un stop que sube a cada nuevo swing a favor (LPS/LPSY), sin
    techo de beneficio.
+
+## Pruebas 1 y 8 de Wyckoff
+
+**Prueba 1 — objetivo del movimiento previo cumplido** (`pf.py`). Se hace un
+conteo horizontal por punto y figura del rango que originó el movimiento
+anterior. Para una acumulación, ese rango es la distribución que precedió a
+la caída.
+- Caja: 0.5 × ATR mediano de ese rango. Reversión: 3 cajas.
+- Objetivo = soporte de la distribución − columnas × caja × reversión.
+- La prueba se cumple si el precio ya llegó a ese objetivo, con una caja de
+  tolerancia. En distribución se hace en espejo, desde la resistencia de la
+  acumulación previa.
+
+**Prueba 8 — fuerza relativa frente al dólar**. Es la pendiente de
+log(XAUUSD / DXY) desde el inicio del rango: positiva en acumulación (el oro
+aguanta mejor que el dólar), negativa en distribución. Necesita el índice
+dólar, que `scripts/descargar_datos.sh` baja también de Dukascopy:
+
+```bash
+python -m xauusd backtest --data data/<oro>.csv --dxy data/dxy/<dxy>.csv
+```
+
+Si el identificador `dollaridxusd` fallara al descargar, busca el del índice
+dólar en la lista de instrumentos de dukascopy-node.
+
+Cada operación del CSV lleva el resultado de las nueve pruebas y el objetivo
+P&F, y el gráfico las resume en un recuadro (✓ cumplida, ✗ no, – no
+evaluable).
 
 ## Qué significa cada término en números
 
@@ -109,9 +137,11 @@ Todos los umbrales están en `xauusd/config.py` para poder ajustarlos.
 - **Stop tras la confirmación.** Por defecto se queda bajo la mecha del
   barrido, como dice la estrategia. Con `ltf_stop="ltf"` iría bajo el
   retroceso en 1 min: stop más corto y RR mayor, pero más fácil de saltar.
-- **Prueba 1** (objetivo de punto y figura) y **prueba 8** (fuerza relativa
-  frente al dólar) no se evalúan. Harían falta un conteo P&F y datos de DXY.
-  El Sistema B exige 5 de las 7 restantes.
+- **Prueba 1 sin rango previo.** Si antes del rango actual no se detectó el
+  rango que originó el movimiento, la prueba queda como no evaluable (cuenta
+  como no cumplida).
+- **Prueba 8 sin datos del dólar.** Si no se pasa `--dxy`, queda como no
+  evaluable.
 - **Etiquetas PS/SC/AR/ST y bandas de fase A–E del gráfico.** Son
   aproximadas: se sitúan en los extremos del rango. Spring, Test y SOS sí
   salen de la detección.

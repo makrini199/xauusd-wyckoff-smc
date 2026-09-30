@@ -166,6 +166,23 @@ def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
     if tr.t_exit is not None:
         ax.plot(tr.t_exit, tr.exit_price, "X", ms=8, color="#212121")
 
+    # Resumen de las nueve pruebas Wyckoff (✓ cumplida, ✗ no, – no evaluable)
+    tests = {k: v for k, v in s.wyckoff_tests.items() if not k.startswith("_")}
+    if tests:
+        mark = lambda v: "✓" if v else "–" if v is None else "✗"
+        lines = [f"{mark(tests[k])} {k.replace('_', ' ')}" for k in sorted(tests, key=lambda k: int(k.split('_')[0]))]
+        obj = s.wyckoff_tests.get("_objetivo_pf")
+        if obj is not None:
+            lines.append(f"Objetivo P&F previo: {obj:.2f}")
+        ax.text(0.005, 0.99, "Pruebas Wyckoff\n" + "\n".join(lines), transform=ax.transAxes, fontsize=6.5,
+                va="top", family="DejaVu Sans", bbox=dict(boxstyle="round", fc="white", ec="#cfd8dc", alpha=0.9))
+        if obj is not None:
+            lo, hi = x["low"].iloc[a:b].min(), x["high"].iloc[a:b].max()
+            if lo - 3 * atr <= obj <= hi + 3 * atr:
+                ax.axhline(obj, color="#6d4c41", lw=0.9, ls=(0, (6, 3)))
+                lbl = "objetivo P&F bajista previo " if tr.direction > 0 else "objetivo P&F alcista previo "
+                ax.text(b - 1, obj, lbl, color="#6d4c41", fontsize=7, ha="right", va="bottom")
+
     # Eje temporal con fechas
     ticks = np.linspace(a, b - 1, 8).astype(int)
     ax.set_xticks(ticks)
