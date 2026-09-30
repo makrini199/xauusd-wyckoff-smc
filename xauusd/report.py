@@ -15,7 +15,7 @@ def trades_frame(res: Result) -> pd.DataFrame:
         r_unit = abs(tr.entry - tr.sl) * tr.units
         s = tr.setup
         rows.append({
-            "entrada": idx[tr.t_entry],
+            "entrada": tr.entry_time if tr.entry_time is not None else idx[tr.t_entry],
             "salida": idx[tr.t_exit],
             "sistema": tr.system,
             "direccion": "largo" if tr.direction > 0 else "corto",
@@ -23,7 +23,7 @@ def trades_frame(res: Result) -> pd.DataFrame:
             "stop_loss": round(tr.sl, 2),
             "take_profit_1": round(tr.tp1, 2),
             "precio_salida": round(tr.exit_price, 2),
-            "rr_proyectado": round(s.rr, 2),
+            "rr_en_entrada": round(abs(tr.tp1 - tr.entry) / abs(tr.entry - tr.sl), 2),
             "resultado_R": round(tr.pnl / r_unit, 2) if r_unit else 0.0,
             "pnl_usd": round(tr.pnl, 2),
             "riesgo_%": tr.risk_frac * 100,
@@ -32,6 +32,7 @@ def trades_frame(res: Result) -> pd.DataFrame:
             "fib": round(s.fib, 3),
             "fase_wyckoff": s.base_checks.get("_phase", "?"),
             "evento": s.event.kind,
+            "nivel_mini_bos": round(s.confirm_level, 2) if s.confirm_level is not None else None,
             "motivo_salida": tr.exit_reason,
             **{f"ok_{k}": bool(tr.checks.get(k)) for k in LABELS},
         })

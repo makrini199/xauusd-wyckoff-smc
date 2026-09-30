@@ -157,6 +157,12 @@ def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
     ax.text(t1, tr.tp1, f" TP1 {tr.tp1:.2f}", color=UP, fontsize=8, va="center")
     ax.text(t1, tr.entry, f" Entrada {tr.entry:.2f}", color="#424242", fontsize=8, va="center")
     ax.plot(tr.t_entry, tr.entry, "^" if tr.direction > 0 else "v", ms=9, color="#212121")
+    if s.confirm_level is not None:
+        z0 = tr.t_entry - 3
+        ax.hlines(s.confirm_level, z0, tr.t_entry, colors="#00897b", lw=1.2, ls="-.")
+        ax.annotate(f"mini BOS {res.cfg.tf_ltf}\n{s.confirm_time:%H:%M}", (tr.t_entry, s.confirm_level),
+                    xytext=(-40, 18 if tr.direction > 0 else -26), textcoords="offset points",
+                    fontsize=7, color="#00695c", arrowprops=dict(arrowstyle="->", color="#00897b", lw=0.7))
     if tr.t_exit is not None:
         ax.plot(tr.t_exit, tr.exit_price, "X", ms=8, color="#212121")
 
@@ -169,7 +175,7 @@ def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
     res_r = tr.pnl / r_unit if r_unit else 0
     ax.set_title(
         f"Sistema {tr.system} · {'Largo' if tr.direction > 0 else 'Corto'} · {s.event.kind} · "
-        f"POI: {s.poi_kind} · Puntaje {tr.points:g}/17 · RR proyectado 1:{s.rr:.1f} · "
+        f"POI: {s.poi_kind}{' + confirmación ' + res.cfg.tf_ltf if s.confirm_level is not None else ''} · Puntaje {tr.points:g}/17 · RR en la entrada 1:{abs(tr.tp1 - tr.entry) / abs(tr.entry - tr.sl):.1f} · "
         f"Resultado {res_r:+.2f}R ({tr.exit_reason})", fontsize=10)
     ax.grid(alpha=0.15)
     fig.tight_layout()

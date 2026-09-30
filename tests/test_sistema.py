@@ -148,3 +148,85 @@ def test_resample_no_mezcla_velas():
     first = df.iloc[:15]
     assert r["high"].iloc[0] == first["high"].max()
     assert r["volume"].iloc[0] == pytest.approx(first["volume"].sum())
+
+
+# --- Confirmación en temporalidad menor ------------------------------------
+from xauusd.engine import Engine, Setup  # noqa: E402
+
+
+def _engine_with_ltf(highs, lows, closes):
+    cfg = Config(threshold_a=0, threshold_b=0, ltf_swing_len=2, ltf_lookback=30, ltf_max_wait=60)
+    eng = Engine(synthetic(3000), cfg)
+    eng.lh, eng.ll, eng.lc = (np.asarray(v, dtype=float) for v in (highs, lows, closes))
+    eng.ltf_bounds = np.array([0] * 50 + [len(closes)] * (len(eng.x) - 49))  # todo cae en la vela 49
+    return eng
+
+
+def _setup(tp1=125.0):
+    ob = OrderBlock(0, 0, +1, 99.0, 100.0)
+    return Setup(t=10, system="A", direction=+1, event=None, entry=100.0, sl=98.0, tp1=tp1, rr=5,
+                 poi_kind="Order block", ob=ob, fvg=None, leg_origin=0, leg_extreme=110, fib=0.7,
+                 base_checks={"mtf_alignment": True}, wyckoff_tests={}, range_=None)
+
+
+# Retroceso con un máximo menor en la vela 3 (103.0), entrada en el POI en la 8
+PULL_H = [104, 102.9, 102.5, 103.0, 102.2, 101.8, 101.5, 101.0, 100.4, 100.8, 101.9, 103.8]
+PULL_L = [103, 101.9, 101.7, 102.0, 101.2, 100.8, 100.5, 100.2, 99.8, 99.9, 100.6, 101.8]
+PULL_C = [103.2, 102.1, 102.0, 102.3, 101.5, 101.0, 100.8, 100.4, 100.1, 100.6, 101.7, 103.6]
+
+
+def test_confirmacion_mini_bos_entra_al_cierre_de_la_ruptura():
+    eng = _engine_with_ltf(PULL_H, PULL_L, PULL_C)
+    s = _setup()
+    eng.pending["A"] = s
+    eng._confirm_ltf("A", s, 49)
+    assert "A" not in eng.pending
+    assert len(eng.open) == 1, eng.rejected
+    tr = eng.open[0]
+    assert s.zone_start == 8
+    assert s.confirm_level == 103.0
+    assert tr.entry == 103.6 and tr.sl == 98.0
+
+
+def test_confirmacion_rechaza_si_el_rr_cae_por_debajo_de_3():
+    eng = _engine_with_ltf(PULL_H, PULL_L, PULL_C)
+    s = _setup(tp1=112.0)  # (112-103.6)/(103.6-98) = 1.5
+    eng.pending["A"] = s
+    eng._confirm_ltf("A", s, 49)
+    assert not eng.open
+    assert "RR tras confirmación" in eng.rejected[-1]["motivo"]
+
+
+def test_confirmacion_se_cancela_si_atraviesa_el_order_block():
+    c = PULL_C[:9] + [98.9, 100.0, 103.6]  # cierra bajo el OB (99) antes de romper
+    l = PULL_L[:9] + [98.7, 98.9, 101.8]
+    eng = _engine_with_ltf(PULL_H, l, c)
+    s = _setup()
+    eng.pending["A"] = s
+    eng._confirm_ltf("A", s, 49)
+    assert not eng.open
+    assert "POI atravesado" in eng.rejected[-1]["motivo"]
+
+
+def test_confirmacion_espera_si_no_hay_ruptura():
+    h = PULL_H[:11] + [101.5]
+    c = PULL_C[:11] + [101.2]
+    l = PULL_L[:11] + [100.7]
+    eng = _engine_with_ltf(h, l, c)
+    s = _setup()
+    eng.pending["A"] = s
+    eng._confirm_ltf("A", s, 49)
+    assert not eng.open and "A" in eng.pending and s.zone_start == 8
+
+
+def test_entradas_con_confirmacion_son_coherentes():
+    cfg = Config(threshold_a=5, threshold_b=6, wyckoff_tests_min_b=2, min_rr=2)
+    res = run_backtest(synthetic(40_000, seed=3), cfg)
+    x = res.exec_df
+    assert res.trades
+    for tr in res.trades:
+        s = tr.setup
+        bar_open = x.index[tr.t_entry]
+        assert bar_open <= tr.entry_time < bar_open + pd.Timedelta(cfg.tf_exec)
+        assert s.confirm_time == tr.entry_time
+        assert (tr.entry - s.confirm_level) * tr.direction > 0

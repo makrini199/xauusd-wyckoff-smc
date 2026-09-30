@@ -13,6 +13,14 @@ class Config:
     tf_bias: str = "4h"          # sesgo / tendencia dominante
     tf_context: str = "1h"       # segunda temporalidad para alineación
     tf_exec: str = "15min"       # temporalidad de ejecución
+    tf_ltf: str = "1min"         # confirmación de entrada (1min o 5min)
+
+    # --- Confirmación en temporalidad menor ---------------------------------
+    ltf_confirm: bool = True      # False = orden límite directa en el POI
+    ltf_swing_len: int = 2        # fractal de la temporalidad menor
+    ltf_lookback: int = 30        # el swing a romper puede formarse hasta N velas antes de entrar en el POI
+    ltf_max_wait: int = 60        # velas menores máximas en la zona sin confirmar
+    ltf_stop: str = "setup"       # "setup": bajo la mecha del barrido; "ltf": bajo el retroceso menor
 
     # --- Estructura -------------------------------------------------------
     swing_len: int = 3            # velas a cada lado para confirmar un swing (fractal)

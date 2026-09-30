@@ -20,6 +20,10 @@ scripts/descargar_datos.sh 2023-01-01 2024-12-31
 # 2. Backtest + informes + gráficos
 python -m xauusd backtest --data data/<archivo>.csv --out resultados/
 
+# Variantes: confirmación en 5 min, o sin confirmación (orden límite en el POI)
+python -m xauusd backtest --data data/<archivo>.csv --ltf 5min
+python -m xauusd backtest --data data/<archivo>.csv --sin-confirmacion
+
 # Sin datos reales, para probar que todo funciona
 python -m xauusd backtest --sintetico --out resultados/
 
@@ -49,22 +53,32 @@ Flujo por cada vela de ejecución (15 min por defecto), sin mirar al futuro:
 3. **Wyckoff** (`wyckoff.py`). Rangos de trading, Spring/Upthrust con los
    criterios objetivos, test del Spring, SOS/SOW, fase vigente y las nueve
    pruebas. Si la fase Wyckoff marca el lado contrario, el setup se bloquea.
-4. **Setup.** Tras cada BOS/CHoCH se coloca una orden límite en el POI:
-   el 50% de un FVG o el order block, prefiriendo el que cae en la zona
-   Fibonacci 0.618–1. El stop va bajo la mecha del barrido más un colchón,
-   y el TP1 en la siguiente liquidez externa. Si el RR a TP1 es menor de
-   1:3, se descarta.
-5. **Sistema A o B.** A si la ruptura va a favor del sesgo 4H. B si va en
+4. **Setup.** Tras cada BOS/CHoCH se marca el POI: el 50% de un FVG o el
+   order block, prefiriendo el que cae en la zona Fibonacci 0.618–1. El stop
+   va bajo la mecha del barrido más un colchón, y el TP1 en la siguiente
+   liquidez externa. Si el RR a TP1 es menor de 1:3, se descarta.
+5. **Confirmación en 1 min** (o 5 min con `--ltf 5min`). Cuando el precio
+   entra en el POI, se espera un mini quiebre de estructura a favor: una
+   vela menor que cierra más allá del último swing menor del retroceso
+   (fractal de 2 velas, formado hasta 30 velas antes de entrar en la zona).
+   Se entra a mercado al cierre de esa vela y se vuelve a exigir RR ≥ 1:3
+   con ese precio. El setup se cancela si, antes de confirmar:
+   - cierra más allá del stop o atraviesa el order block;
+   - alcanza el objetivo sin haber vuelto al POI;
+   - pasa 60 velas menores en la zona.
+
+   Con `--sin-confirmacion` se vuelve a la orden límite directa en el POI.
+6. **Sistema A o B.** A si la ruptura va a favor del sesgo 4H. B si va en
    contra, y además exige al menos 5 de las pruebas Wyckoff evaluables.
-6. **Puntaje** (`scoring.py`). Se calcula al llenarse la orden. Umbral: 12/17
+7. **Puntaje** (`scoring.py`). Se calcula en el momento de la entrada. Umbral: 12/17
    (A) o 14/17 (B). Riesgo del 0.5%, o del 1% por encima de 16.
-7. **Riesgo** (`risk.py`):
+8. **Riesgo** (`risk.py`):
    - 1 posición A + 1 B como máximo.
    - Exposición agregada ≤ 3%.
    - Como mucho 2 operaciones al día; con 2 pérdidas se para el día.
    - Stop semanal del 3%.
    - Drawdown interno máximo del 5%, que detiene el sistema.
-8. **Gestión.** En TP1 se cierra el 50% y el stop pasa a break-even. El resto
+9. **Gestión.** En TP1 se cierra el 50% y el stop pasa a break-even. El resto
    corre con un stop que sube a cada nuevo swing a favor (LPS/LPSY), sin
    techo de beneficio.
 
@@ -86,14 +100,15 @@ Todos los umbrales están en `xauusd/config.py` para poder ajustarlos.
 | Order block débil | 3 o más toques; mitigado si una vela cierra al otro lado |
 | FVG | hueco de tres velas ≥ 0.2·ATR; entrada en su 50% |
 | Divergencia RSI | extremo de origen más bajo que el swing anterior con RSI(14) más alto (y al revés) |
+| Mini BOS (confirmación) | cierre de una vela de 1 min más allá del último fractal menor (2 velas) del retroceso hacia el POI |
 | Kill zones (GMT) | 13–17 (solapamiento Londres-NY) y 7–10 (apertura de Londres) |
 | Coste | 0.30 USD/oz por operación |
 
 ## Pendiente o aproximado
 
-- **Confirmación en 1–5 min dentro del POI.** Aún no está: la entrada es una
-  orden límite en el POI. Es el siguiente paso natural, porque los datos de
-  1 minuto ya se cargan.
+- **Stop tras la confirmación.** Por defecto se queda bajo la mecha del
+  barrido, como dice la estrategia. Con `ltf_stop="ltf"` iría bajo el
+  retroceso en 1 min: stop más corto y RR mayor, pero más fácil de saltar.
 - **Prueba 1** (objetivo de punto y figura) y **prueba 8** (fuerza relativa
   frente al dólar) no se evalúan. Harían falta un conteo P&F y datos de DXY.
   El Sistema B exige 5 de las 7 restantes.

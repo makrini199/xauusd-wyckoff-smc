@@ -24,12 +24,19 @@ def main(argv=None):
     b.add_argument("--hasta", help="fecha final")
     b.add_argument("--out", default="resultados")
     b.add_argument("--tf", default=None, help="temporalidad de ejecución (por defecto 15min)")
+    b.add_argument("--ltf", default=None, help="temporalidad de confirmación: 1min (defecto) o 5min")
+    b.add_argument("--sin-confirmacion", action="store_true",
+                   help="entrar con orden límite en el POI, sin esperar el mini BOS")
     b.add_argument("--graficos", type=int, default=50, help="máximo de operaciones a dibujar")
     a = p.parse_args(argv)
 
     cfg = Config()
     if a.tf:
         cfg.tf_exec = a.tf
+    if a.ltf:
+        cfg.tf_ltf = a.ltf
+    if a.sin_confirmacion:
+        cfg.ltf_confirm = False
     df = synthetic(60_000) if a.sintetico else load_csv(a.data)
     if a.desde:
         df = df[df.index >= a.desde]
