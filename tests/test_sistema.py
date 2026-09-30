@@ -313,3 +313,13 @@ def test_snapshot_oculta_eventos_posteriores():
     assert r.end == 80 and not r.shakeouts[0].valid  # el original no cambia
     assert snapshot(r, 44).shakeouts[0].valid and not snapshot(r, 46).shakeouts[0].valid
     assert snapshot(r, 20) is None
+
+
+@pytest.mark.parametrize("factor", [1, 1000, 1_000_000])
+def test_load_csv_detecta_la_unidad_del_timestamp(tmp_path, factor):
+    from xauusd.data import load_csv
+    secs = pd.Timestamp("2024-03-01 10:00", tz="UTC").timestamp()
+    f = tmp_path / "x.csv"
+    f.write_text("timestamp,open,high,low,close,volume\n"
+                 f"{int(secs * factor)},1,2,0.5,1.5,10\n")
+    assert load_csv(f).index[0] == pd.Timestamp("2024-03-01 10:00", tz="UTC")

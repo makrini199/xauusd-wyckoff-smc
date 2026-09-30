@@ -151,7 +151,8 @@ def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
         ax.text(s.leg_origin, lvl(f), f"{f:g} ", fontsize=6, color="#f57f17", ha="right", va="center")
 
     # Posición estilo TradingView: caja de beneficio (verde) y riesgo (rojo)
-    t1 = tr.t_exit or b - 1
+    # Operación abierta: la caja se proyecta hacia la derecha, en espacio vacío
+    t1 = tr.t_exit if tr.t_exit is not None else tr.t_entry + 25
     w = max(t1 - tr.t_entry, 1)
     ax.add_patch(Rectangle((tr.t_entry, min(tr.entry, tr.tp1)), w, abs(tr.tp1 - tr.entry), color=UP, alpha=0.2, lw=0))
     ax.add_patch(Rectangle((tr.t_entry, min(tr.entry, tr.sl)), w, abs(tr.entry - tr.sl), color=DOWN, alpha=0.2, lw=0))
@@ -192,13 +193,14 @@ def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
     ticks = np.linspace(a, b - 1, 8).astype(int)
     ax.set_xticks(ticks)
     ax.set_xticklabels([x.index[i].strftime("%d-%m %H:%M") for i in ticks], fontsize=8)
-    ax.set_xlim(a - 1, b + 12)
+    ax.set_xlim(a - 1, max(b, t1) + 12)
     r_unit = abs(tr.entry - tr.sl) * tr.units
     res_r = tr.pnl / r_unit if r_unit else 0
     ax.set_title(
         f"Sistema {tr.system} · {'Largo' if tr.direction > 0 else 'Corto'} · {s.event.kind} · "
         f"POI: {s.poi_kind}{' + confirmación ' + res.cfg.tf_ltf if s.confirm_level is not None else ''} · Puntaje {tr.points:g}/17 · RR en la entrada 1:{abs(tr.tp1 - tr.entry) / abs(tr.entry - tr.sl):.1f} · "
-        f"Resultado {res_r:+.2f}R ({tr.exit_reason})", fontsize=10)
+        + (f"Resultado {res_r:+.2f}R ({tr.exit_reason})" if tr.t_exit is not None else "Operación abierta"),
+        fontsize=10)
     ax.grid(alpha=0.15)
     fig.tight_layout()
     fig.savefig(path, dpi=110)

@@ -41,6 +41,71 @@ Salida en `resultados/`:
 | `equity.csv`, `equity.png` | curva de capital y drawdown |
 | `operaciones/*.png` | gráfico de cada operación |
 
+## Alertas por Telegram
+
+El sistema vigila XAUUSD en vivo y avisa de cada paso. **No ejecuta órdenes**:
+la decisión de entrar es tuya.
+
+| Alerta | Cuándo llega |
+| --- | --- |
+| 🔎 Setup | BOS/CHoCH con POI, stop, TP1 y RR ≥ 1:3, y que aún puede llegar al umbral de puntaje |
+| 📍 Precio en el POI | el precio entra en la zona; se espera el mini BOS de 1 min |
+| 🚨 Entrada | mini BOS confirmado y puntaje ≥ umbral. Lleva entrada, SL, TP1, RR, puntaje, riesgo, tamaño en onzas y lotes, criterios cumplidos y el gráfico |
+| 🎯 TP1 | cerrar el 50% y mover el stop a break-even |
+| ✅/❌ Cierre | stop, trailing stop o take profit, con el resultado en R |
+
+### Puesta en marcha
+
+1. **Bot de Telegram.**
+   - En Telegram, habla con **@BotFather**, envía `/newbot` y copia el token.
+   - Escribe cualquier cosa a tu bot.
+   - Abre `https://api.telegram.org/bot<TOKEN>/getUpdates` y copia el número
+     de `"chat":{"id": ...}`.
+2. **Datos en vivo (OANDA).** Abre una cuenta demo gratuita en oanda.com. En
+   *Manage API Access*, genera un token. La cuenta demo basta: solo se leen
+   precios.
+3. **Credenciales.** Copia `.env.ejemplo` a `.env`, rellénalo y cárgalo:
+   ```bash
+   set -a; source .env; set +a
+   python -m xauusd telegram-prueba      # debe llegarte un mensaje
+   ```
+4. **Arrancar:**
+   ```bash
+   python -m xauusd alertas --capital 100000
+   ```
+   - Comprueba una vez por minuto, 5 s después del cierre de cada vela.
+   - La primera vez marca lo ya ocurrido como visto y no lo envía.
+   - Guarda las alertas enviadas en `alertas_estado.json` para no repetir
+     tras un reinicio.
+
+Para dejarlo funcionando 24/5 sin tu ordenador, en un VPS, usa
+`scripts/xauusd-alertas.service` (las instrucciones están dentro del
+archivo).
+
+### Probar sin datos en vivo
+
+Reproduce un CSV histórico como si fuera en directo e imprime las alertas en
+pantalla:
+
+```bash
+python -m xauusd alertas --fuente csv --csv data/<oro>.csv --desde 2024-03-01 \
+    --hasta 2024-03-08 --paso 15min --simular
+```
+
+### Detalles
+
+- **Prueba 8 en vivo.** OANDA no cotiza el índice dólar. Se reconstruye con
+  la fórmula oficial del DXY a partir de EUR/USD, USD/JPY, GBP/USD, USD/CAD,
+  USD/SEK y USD/CHF. Con `--sin-dxy` se omite.
+- **Volumen.** El de OANDA es de ticks, igual que el de Dukascopy en el
+  backtest.
+- **Cálculo en cada minuto.** Se recalcula el motor con los últimos 20 días
+  (`--dias`).
+- **Límites de riesgo.** Los límites diarios y semanales (2 operaciones al
+  día, stop semanal del 3%...) se aplican a las operaciones que el propio
+  sistema ha señalado en esa ventana, no a tu cuenta real.
+- **Tamaño de posición.** Sale de `--capital`: 1 lote = 100 oz.
+
 ## Cómo funciona
 
 Flujo por cada vela de ejecución (15 min por defecto), sin mirar al futuro:
@@ -151,5 +216,5 @@ Todos los umbrales están en `xauusd/config.py` para poder ajustarlos.
   se solapan. Aquí el 1% empieza por encima de 16 (`risk_max_score`).
 - **Frecuencia de referencia:** 2–3 operaciones válidas por semana. Si el
   backtest da muchas más, el umbral está demasiado laxo.
-- Solo backtest. Las alertas en vivo y el despliegue en un VPS vienen después
-  de validarlo.
+- Las alertas no envían órdenes al bróker. La ejecución automática es el
+  paso siguiente, una vez validado el sistema con datos reales.

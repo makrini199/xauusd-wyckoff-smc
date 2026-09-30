@@ -18,7 +18,10 @@ def load_csv(path: str | Path) -> pd.DataFrame:
     ts_col = next(c for c in df.columns if c in ("timestamp", "time", "date", "datetime"))
     ts = df[ts_col]
     if np.issubdtype(ts.dtype, np.number):
-        idx = pd.to_datetime(ts, unit="ms", utc=True)
+        # Unix en s, ms o µs según la magnitud (dukascopy-node usa ms)
+        mag = float(np.nanmax(np.abs(ts.to_numpy()))) if len(ts) else 0
+        unit = "us" if mag > 1e14 else "ms" if mag > 1e11 else "s"
+        idx = pd.to_datetime(ts, unit=unit, utc=True)
     else:
         idx = pd.to_datetime(ts, utc=True)
     df = df.set_index(idx)[COLS].astype(float)

@@ -1,0 +1,20 @@
+# Servicio systemd para dejar las alertas funcionando 24/5 en un VPS.
+# 1. Copia el repo a /opt/xauusd-wyckoff-smc e instala las dependencias.
+# 2. Crea /opt/xauusd-wyckoff-smc/.env con TELEGRAM_TOKEN, TELEGRAM_CHAT_ID y OANDA_TOKEN.
+# 3. sudo cp scripts/xauusd-alertas.service /etc/systemd/system/
+#    sudo systemctl enable --now xauusd-alertas
+#    journalctl -u xauusd-alertas -f      # ver el registro
+[Unit]
+Description=Alertas XAUUSD Wyckoff + Smart Money
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/xauusd-wyckoff-smc
+EnvironmentFile=/opt/xauusd-wyckoff-smc/.env
+ExecStart=/usr/bin/python3 -m xauusd alertas --capital 100000
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -5,3 +5,6 @@ data/*
 !data/.gitkeep
 resultados/
 .pytest_cache/
+.env
+alertas_estado.json
+alertas_graficos/

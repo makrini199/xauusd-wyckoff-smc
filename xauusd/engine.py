@@ -44,6 +44,7 @@ class Setup:
     zone_start: int | None = None      # vela menor en la que el precio entra en el POI
     ltf_level: float | None = None     # swing menor a romper para confirmar
     confirm_time: object = None
+    zone_time: object = None           # hora en que el precio entró en el POI
     confirm_level: float | None = None
 
 
@@ -62,6 +63,7 @@ class Trade:
     checks: dict
     stop: float = 0.0
     entry_time: object = None
+    t_tp1: int | None = None
     tp1_hit: bool = False
     t_exit: int | None = None
     exit_price: float | None = None
@@ -86,6 +88,9 @@ class Result:
     wyckoff: wk.WyckoffTracker
     cfg: Config
     halted: bool = False
+    open_trades: list = field(default_factory=list)
+    setups: list = field(default_factory=list)      # todos los setups preparados
+    pending: dict = field(default_factory=dict)     # setups aún esperando entrada
 
 
 def _htf_to_exec(trend: pd.Series, tf: str, exec_close: pd.DatetimeIndex) -> np.ndarray:
@@ -130,9 +135,12 @@ class Engine:
         self.open: list[Trade] = []
         self.closed: list[Trade] = []
         self.rejected: list[dict] = []
+        self.setups: list[Setup] = []
 
     # ------------------------------------------------------------------
-    def run(self) -> Result:
+    def run(self, close_open: bool = True) -> Result:
+        """`close_open=False` deja abiertas las posiciones al final de los datos
+        (modo en vivo); por defecto se cierran al último precio (backtest)."""
         eq = np.empty(len(self.x))
         for t in range(len(self.x)):
             ts = self.x.index[t]
@@ -148,10 +156,12 @@ class Engine:
                 self._new_setup(ev, t)
             eq[t] = self.rm.equity + sum(self._mtm(tr, self.c[t]) for tr in self.open)
         # Cierre forzoso al final de los datos
-        for tr in list(self.open):
-            self._close(tr, len(self.x) - 1, self.c[-1], "fin de datos")
+        if close_open:
+            for tr in list(self.open):
+                self._close(tr, len(self.x) - 1, self.c[-1], "fin de datos")
         return Result(self.x, self.closed, self.rejected, pd.Series(eq, index=self.x.index),
-                      self.st, self.wy, self.cfg, self.rm.halted)
+                      self.st, self.wy, self.cfg, self.rm.halted,
+                      open_trades=list(self.open), setups=self.setups, pending=dict(self.pending))
 
     def _reject(self, t: int, why: str, **kw):
         self.rejected.append({"time": self.x.index[t], "motivo": why, **kw})
@@ -214,6 +224,7 @@ class Engine:
                 return
         self.pending[system] = Setup(t, system, d, ev, entry, sl, tp1, rr, poi_kind, ob, fvg,
                                      origin, ext, retr(entry), base, tests, r)
+        self.setups.append(self.pending[system])
 
     def _rsi_div(self, origin: int, d: int, t: int) -> bool:
         """Divergencia regular en el extremo que originó el impulso."""
@@ -277,6 +288,7 @@ class Engine:
             if s.zone_start is None:
                 if (ll[j] <= s.entry) if d > 0 else (lh[j] >= s.entry):
                     s.zone_start = j
+                    s.zone_time = self.ltf.index[j]
                     s.ltf_level = self._ltf_last_swing(j, d)
                 elif (lh[j] >= s.tp1) if d > 0 else (ll[j] <= s.tp1):
                     del self.pending[system]
@@ -387,6 +399,7 @@ class Engine:
                 tr.realised += frac * tr.units * (tr.tp1 - tr.entry) * d
                 tr.remaining = 1 - frac
                 tr.tp1_hit = True
+                tr.t_tp1 = t
                 tr.stop = tr.entry  # break-even
                 if tr.remaining <= 0:
                     self._close(tr, t, tr.tp1, "take profit")
