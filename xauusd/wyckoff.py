@@ -24,6 +24,7 @@ class Shakeout:
     volume: float
     valid: bool
     invalid_reason: str = ""
+    invalid_t: int | None = None     # vela en la que dejó de ser válido
     tested: bool = False
     t_test: int | None = None
 
@@ -105,6 +106,7 @@ class WyckoffTracker:
             beyond = (self.c[t] < sh.extreme) if d > 0 else (self.c[t] > sh.extreme)
             if sh.valid and ((against and self._wide(t)) or beyond):
                 sh.valid = False
+                sh.invalid_t = t
                 sh.invalid_reason = "alarma: vuelve a caer con spread amplio" if d > 0 else "alarma: vuelve a subir con spread amplio"
             if t < deadline and sh.valid:
                 keep.append((sh, deadline))
@@ -176,7 +178,7 @@ class WyckoffTracker:
             valid, reason = False, "ruptura con spread amplio y volumen alto"
         elif not low_or_falling:
             valid, reason = False, "volumen de ruptura ni bajo ni decreciente"
-        sh = Shakeout(-side, a, b, extreme, vol, valid, reason)
+        sh = Shakeout(-side, a, b, extreme, vol, valid, reason, None if valid else b)
         r.shakeouts.append(sh)
         if valid:
             self._pending.append((sh, b + 4))
@@ -192,6 +194,25 @@ class WyckoffTracker:
 
 
 # ----------------------------------------------------------------------
+def snapshot(r: TradingRange | None, t: int) -> TradingRange | None:
+    """Copia del rango tal y como se conocía al cierre de la vela t
+    (sin eventos posteriores ni invalidaciones que llegaron después)."""
+    if r is None or r.detected > t:
+        return None
+    from dataclasses import replace
+    shakeouts = []
+    for sh in r.shakeouts:
+        if sh.t_reclaim > t:
+            continue
+        valid = sh.valid or (sh.invalid_t is not None and sh.invalid_t > t)
+        tested = sh.tested and sh.t_test is not None and sh.t_test <= t
+        shakeouts.append(replace(sh, valid=valid, tested=tested, t_test=sh.t_test if tested else None))
+    strengths = [replace(x) for x in r.strengths if x.t <= t]
+    ended = r.end is not None and r.end <= t
+    return replace(r, shakeouts=shakeouts, strengths=strengths,
+                   end=r.end if ended else None, breakout=r.breakout if ended else 0)
+
+
 def shakeout_ok(r: TradingRange | None, direction: int, t: int, require_test: bool = False) -> bool:
     if r is None:
         return False

@@ -9,6 +9,7 @@ import numpy as np  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 
 from .engine import Result, Trade  # noqa: E402
+from .wyckoff import snapshot  # noqa: E402
 
 UP, DOWN = "#26a69a", "#ef5350"
 PHASE_COLORS = {"A": "#90caf9", "B": "#b0bec5", "C": "#ffcc80", "D": "#a5d6a7", "E": "#ce93d8"}
@@ -25,11 +26,12 @@ def _candles(ax, df, a, b):
                                color=col, linewidth=0))
 
 
-def _wyckoff_events(res: Result, r, direction: int):
-    """Etiquetas clásicas aproximadas dentro del rango y límites de fase."""
+def _wyckoff_events(res: Result, r, direction: int, upto: int):
+    """Etiquetas clásicas aproximadas dentro del rango y límites de fase,
+    usando solo precios hasta la vela `upto` (la de entrada)."""
     x = res.exec_df
     h, l = x["high"].to_numpy(), x["low"].to_numpy()
-    end = r.end if r.end is not None else len(x) - 1
+    end = min(r.end, upto) if r.end is not None else upto
     a, n = r.start, end - r.start
     acc = direction > 0
     ext_arr, opp_arr = (l, h) if acc else (h, l)
@@ -41,7 +43,8 @@ def _wyckoff_events(res: Result, r, direction: int):
     ev["SC" if acc else "BC"] = (sc, ext_arr[sc])
     if sc > a:
         ps = a + int(pick(ext_arr[a:sc])) if sc - a > 1 else a
-        ev["PS" if acc else "PSY"] = (ps, ext_arr[ps])
+        if sc - ps > 3:
+            ev["PS" if acc else "PSY"] = (ps, ext_arr[ps])
     ar = sc + int(pick_opp(opp_arr[sc:end + 1]))
     ev["AR"] = (ar, opp_arr[ar])
     st_i = ar + int(pick(ext_arr[ar:end + 1])) if ar < end else ar
@@ -71,14 +74,16 @@ def _wyckoff_events(res: Result, r, direction: int):
     if d_start is not None:
         phases.append(("D", d_start, end))
         if r.end is not None:
-            phases.append(("E", end, min(end + (end - a) // 2, len(x) - 1)))
+            phases.append(("E", end, upto))
+    phases = [(p, p0, min(p1, upto)) for p, p0, p1 in phases if p0 < upto]
     return ev, phases
 
 
 def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
     x = res.exec_df
     s = tr.setup
-    r = s.range_
+    # Solo lo que se conocía al entrar: el rango y sus eventos a esa vela
+    r = snapshot(s.range_, tr.t_entry)
     a = min(s.leg_origin, r.start if r is not None else s.leg_origin) - pad
     a = max(a, 0, tr.t_entry - 400)
     b = min(len(x), (tr.t_exit or tr.t_entry) + pad)
@@ -88,12 +93,12 @@ def plot_trade(res: Result, tr: Trade, path: str | Path, pad: int = 30):
 
     # Esquema Wyckoff: rango, eventos y bandas de fase
     if r is not None:
-        re_ = r.end if r.end is not None else b - 1
+        re_ = r.end if r.end is not None else tr.t_entry
         ax.add_patch(Rectangle((r.start, r.support), re_ - r.start, r.width,
                                fill=False, ec="#546e7a", lw=1.2, ls="--"))
         ax.hlines([r.support, r.resistance], r.start, re_, colors="#546e7a", lw=0.8)
         ax.text(r.start, r.resistance, f" Rango de {KIND_LABEL[r.kind]}" if r.kind != "neutral" else " Rango (origen neutral)", va="bottom", fontsize=8, color="#37474f")
-        ev, phases = _wyckoff_events(res, r, tr.direction)
+        ev, phases = _wyckoff_events(res, r, tr.direction, tr.t_entry)
         for name, (i, p) in ev.items():
             if a <= i < b:
                 below = (name in ("SC", "PS", "ST", "Spring", "Test")) == (tr.direction > 0)

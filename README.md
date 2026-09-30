@@ -69,7 +69,8 @@ Flujo por cada vela de ejecución (15 min por defecto), sin mirar al futuro:
 
    Con `--sin-confirmacion` se vuelve a la orden límite directa en el POI.
 6. **Sistema A o B.** A si la ruptura va a favor del sesgo 4H. B si va en
-   contra, y además exige al menos 5 de las nueve pruebas Wyckoff.
+   contra, y además exige al menos 6 de las nueve pruebas Wyckoff
+   (`wyckoff_tests_min_b`; la estrategia pide 5-6).
 7. **Puntaje** (`scoring.py`). Se calcula en el momento de la entrada. Umbral: 12/17
    (A) o 14/17 (B). Riesgo del 0.5%, o del 1% por encima de 16.
 8. **Riesgo** (`risk.py`):
@@ -144,7 +145,8 @@ Todos los umbrales están en `xauusd/config.py` para poder ajustarlos.
   evaluable.
 - **Etiquetas PS/SC/AR/ST y bandas de fase A–E del gráfico.** Son
   aproximadas: se sitúan en los extremos del rango. Spring, Test y SOS sí
-  salen de la detección.
+  salen de la detección. El esquema Wyckoff del gráfico muestra solo lo que
+  se conocía en la vela de entrada, igual que el recuadro de pruebas.
 - **Riesgo con 16 puntos.** El doc dice "12–16 → 0.5%" y "16–17 → 1%", que
   se solapan. Aquí el 1% empieza por encima de 16 (`risk_max_score`).
 - **Frecuencia de referencia:** 2–3 operaciones válidas por semana. Si el

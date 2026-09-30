@@ -298,3 +298,18 @@ def test_backtest_con_dxy_evalua_la_prueba_8():
     vals = [tr.setup.wyckoff_tests.get("8_fuerza_relativa") for tr in res.trades
             if tr.setup.range_ is not None]
     assert vals and all(v is not None for v in vals)
+
+
+def test_snapshot_oculta_eventos_posteriores():
+    from xauusd.wyckoff import Shakeout, Strength, snapshot
+    r = TradingRange(0, 30, 100, 110, "acumulacion", True, end=80, breakout=+1)
+    r.shakeouts = [Shakeout(+1, 40, 41, 99, 50, valid=False, invalid_reason="alarma", invalid_t=45,
+                            tested=True, t_test=60)]
+    r.strengths = [Strength(70, +1)]
+    snap = snapshot(r, 50)
+    assert snap.end is None and snap.breakout == 0
+    assert not snap.shakeouts[0].tested  # el test llega en la vela 60
+    assert snap.strengths == []
+    assert r.end == 80 and not r.shakeouts[0].valid  # el original no cambia
+    assert snapshot(r, 44).shakeouts[0].valid and not snapshot(r, 46).shakeouts[0].valid
+    assert snapshot(r, 20) is None

@@ -79,7 +79,7 @@ class Config:
     threshold_a: float = 12.0
     threshold_b: float = 14.0
     min_rr: float = 3.0
-    wyckoff_tests_min_b: int = 5
+    wyckoff_tests_min_b: int = 6   # de las nueve pruebas (la estrategia pide 5-6)
 
     # --- Riesgo ------------------------------------------------------------
     initial_capital: float = 100_000.0
