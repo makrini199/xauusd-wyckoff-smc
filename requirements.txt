@@ -1,5 +1,6 @@
 pandas>=2.1
 numpy>=1.26
 matplotlib>=3.8
+websocket-client>=1.6
 MetaTrader5>=5.0.45; sys_platform == "win32"
 pytest>=8

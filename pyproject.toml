@@ -3,7 +3,7 @@ name = "xauusd-wyckoff-smc"
 version = "0.1.0"
 description = "Sistema Wyckoff + Smart Money para XAUUSD: detección, scoring, backtest y gráficos"
 requires-python = ">=3.10"
-dependencies = ["pandas>=2.1", "numpy>=1.26", "matplotlib>=3.8"]
+dependencies = ["pandas>=2.1", "numpy>=1.26", "matplotlib>=3.8", "websocket-client>=1.6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

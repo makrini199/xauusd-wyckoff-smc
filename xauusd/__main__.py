@@ -30,9 +30,10 @@ def main(argv=None):
                    help="entrar con orden límite en el POI, sin esperar el mini BOS")
     b.add_argument("--graficos", type=int, default=50, help="máximo de operaciones a dibujar")
     al = sub.add_parser("alertas", help="vigila XAUUSD y envía alertas por Telegram")
-    al.add_argument("--fuente", choices=["mt5", "oanda", "csv"], default="mt5",
-                    help="mt5: MetaTrader 5 abierto en Windows (IC Markets); oanda; csv: reproducir histórico")
-    al.add_argument("--simbolo", default="XAUUSD", help="(mt5) símbolo del oro en tu bróker")
+    al.add_argument("--fuente", choices=["ctrader", "mt5", "oanda", "csv"], default="ctrader",
+                    help="ctrader: API de cTrader (IC Markets, cualquier sistema); mt5: MetaTrader 5 en "
+                         "Windows; oanda; csv: reproducir histórico")
+    al.add_argument("--simbolo", default="XAUUSD", help="(ctrader/mt5) símbolo del oro en tu bróker")
     al.add_argument("--mt5-gmt", type=int, default=None,
                     help="(mt5) horas de la hora del servidor respecto a UTC; por defecto se detecta")
     al.add_argument("--mt5-sufijo", default="", help="(mt5) sufijo de los símbolos, p. ej. .a o .r")
@@ -41,14 +42,18 @@ def main(argv=None):
     al.add_argument("--desde", help="(fuente csv) fecha desde la que reproducir")
     al.add_argument("--hasta", help="(fuente csv) fecha hasta la que reproducir")
     al.add_argument("--paso", default="1min", help="(fuente csv) avance del reloj en cada paso")
-    al.add_argument("--sin-dxy", action="store_true", help="(mt5/oanda) no calcular el DXY; prueba 8 no evaluable")
+    al.add_argument("--sin-dxy", action="store_true", help="no calcular el DXY; prueba 8 no evaluable")
     al.add_argument("--simular", action="store_true", help="imprimir las alertas en pantalla en vez de Telegram")
     al.add_argument("--capital", type=float, help="capital para calcular el tamaño de posición")
     al.add_argument("--dias", type=int, default=20, help="días de historia que recalcula el motor")
     al.add_argument("--estado", default="alertas_estado.json", help="archivo con las alertas ya enviadas")
     al.add_argument("--una-vez", action="store_true", help="una sola comprobación (para cron)")
     sub.add_parser("telegram-prueba", help="envía un mensaje de prueba a Telegram")
+    ct = sub.add_parser("ctrader-prueba", help="comprueba la conexión con cTrader y muestra las últimas velas")
+    ct.add_argument("--simbolo", default="XAUUSD")
     a = p.parse_args(argv)
+    if a.cmd == "ctrader-prueba":
+        return _ctrader_prueba(a)
     if a.cmd == "telegram-prueba":
         from .telegram import Telegram
         Telegram().send_message("✅ Alertas XAUUSD Wyckoff + Smart Money: conexión correcta.")
@@ -88,6 +93,14 @@ def _alertas(a):
     if a.capital:
         cfg.initial_capital = a.capital
     sink = ConsoleSink() if a.simular else Telegram()
+    if a.fuente == "ctrader":
+        from .ctrader import CTraderClient, CTraderDxySource, CTraderSource
+        client = CTraderClient()
+        src = CTraderSource(client, a.simbolo)
+        dxy = None if a.sin_dxy else CTraderDxySource(client)
+        w = Watcher(src, sink, cfg, a.estado, a.dias, dxy_source=dxy)
+        w.step() if a.una_vez else w.loop()
+        return
     if a.fuente == "mt5":
         from .mt5 import Mt5DxySource, Mt5Source, connect
         mt5 = connect()
@@ -117,6 +130,24 @@ def _alertas(a):
         src.now += pd.Timedelta(a.paso)
         if dxy:
             dxy.now = src.now
+
+
+def _ctrader_prueba(a):
+    import pandas as pd
+
+    from .ctrader import CTraderClient
+
+    c = CTraderClient()
+    accs = c.call(c.accounts)
+    print("Cuentas autorizadas:")
+    for x in accs:
+        print(f"  {x.get('traderLogin')}  ({'real' if x.get('isLive') else 'demo'})")
+    end = pd.Timestamp.now(tz="UTC").floor("1min")
+    df = c.trendbars(a.simbolo, end - pd.Timedelta(hours=2), end)
+    print(f"\nCuenta en uso: {c.account_id} · {len(c.symbols)} símbolos")
+    print(f"Últimas velas de {a.simbolo} (UTC):")
+    print(df.tail(5).to_string() if len(df) else "  (ninguna: ¿mercado cerrado?)")
+    c.close()
 
 
 def load_env(path: str = ".env"):

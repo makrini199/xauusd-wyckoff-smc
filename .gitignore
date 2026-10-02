@@ -8,3 +8,4 @@ resultados/
 .env
 alertas_estado.json
 alertas_graficos/
+ctrader_tokens.json

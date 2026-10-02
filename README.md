@@ -54,6 +54,63 @@ la decisión de entrar es tuya.
 | 🎯 TP1 | cerrar el 50% y mover el stop a break-even |
 | ✅/❌ Cierre | stop, trailing stop o take profit, con el resultado en R |
 
+### Puesta en marcha con cTrader (IC Markets) — recomendada
+
+Es la fuente por defecto. Lee las velas de 1 min directamente de la API de
+cTrader, así que funciona en cualquier ordenador o en un VPS Linux barato, sin
+MetaTrader ni Windows.
+
+1. **Bot de Telegram.**
+   - Crea el bot con **@BotFather** (`/newbot`) y copia el token.
+   - Escribe "hola" a tu bot.
+   - Abre `https://api.telegram.org/bot<TOKEN>/getUpdates` y copia el
+     número de `"chat":{"id": ...}`: es tu chat id.
+2. **Cuenta cTrader.** En el área de cliente de IC Markets, abre una cuenta
+   demo de **cTrader**. Entrarás con tu **cTrader ID** (email y contraseña).
+3. **Aplicación en la Open API.**
+   - Entra en **openapi.ctrader.com** con ese cTrader ID.
+   - Ve a **Applications → Add new app**. Pon un nombre (p. ej. "Alertas
+     oro") y, como *Redirect URI*, `http://localhost`.
+   - Espera a que la aplicación pase a estado activo. La aprobación puede
+     tardar un poco.
+   - Dentro de la aplicación, en **Credentials**, copia el *Client ID* y el
+     *Secret*.
+4. **Tokens.**
+   - En la misma aplicación, pulsa **Playground** (o *Sandbox*), elige el
+     permiso de cuentas/trading y autoriza tu cuenta demo de IC Markets.
+   - Te mostrará un **Access token** y un **Refresh token**: cópialos.
+   - El access token caduca en unos 30 días. El programa lo renueva solo con
+     el refresh token y guarda los nuevos en `ctrader_tokens.json`.
+5. **Credenciales.** Copia `.env.ejemplo` como `.env` y rellena:
+   - las dos líneas de Telegram;
+   - las cuatro `CTRADER_...`;
+   - `CTRADER_ENTORNO=demo` (o `live` con una cuenta real).
+6. **Instalar y probar:**
+   ```
+   pip install -r requirements.txt
+   python -m xauusd ctrader-prueba     # lista tus cuentas y las últimas velas del oro
+   python -m xauusd telegram-prueba    # te llega un mensaje al móvil
+   python -m xauusd alertas --capital 10000
+   ```
+
+#### Dejarlo 24/5 en un VPS Linux
+
+Sirve el gratuito de Oracle Cloud o uno de unos 4 €/mes (Ubuntu). Copia el
+proyecto a `/opt/xauusd-wyckoff-smc` y, desde esa carpeta:
+
+```bash
+sudo apt install -y python3-venv
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+nano .env                                   # pega tus credenciales
+.venv/bin/python -m xauusd ctrader-prueba   # comprobar
+sudo cp scripts/xauusd-alertas.service /etc/systemd/system/
+sudo systemctl enable --now xauusd-alertas
+journalctl -u xauusd-alertas -f             # ver el registro
+```
+
+El servicio arranca solo si el servidor se reinicia, y se relanza a los 30 s
+si el programa falla.
+
 ### Puesta en marcha en Windows con MetaTrader 5 (IC Markets)
 
 1. **Bot de Telegram.**
@@ -84,7 +141,7 @@ la decisión de entrar es tuya.
 6. **Probar y arrancar:**
    ```
    python -m xauusd telegram-prueba
-   python -m xauusd alertas --capital 10000
+   python -m xauusd alertas --fuente mt5 --capital 10000
    ```
    También puedes hacer doble clic en `scripts\alertas.bat`; edítalo para
    poner tu capital.
@@ -104,9 +161,7 @@ UTC. Si arrancas con el mercado cerrado, fíjalo con `--mt5-gmt 3` (o `2`).
 `--simbolo XAUUSD --mt5-sufijo .a`.
 
 **Otras fuentes.** Con `--fuente oanda` se usa la API de OANDA (`OANDA_TOKEN`
-en `.env`). Para un servidor Linux 24/5 sin Windows, la alternativa sería la
-API de cTrader (pendiente). Para un VPS con Windows sirve tal cual. El
-archivo `scripts/xauusd-alertas.service` es para la variante OANDA en Linux.
+en `.env`).
 
 ### Probar sin datos en vivo
 
@@ -123,8 +178,8 @@ python -m xauusd alertas --fuente csv --csv data/<oro>.csv --desde 2024-03-01 \
 - **Prueba 8 en vivo.** El índice dólar se reconstruye con la fórmula
   oficial del DXY a partir de EURUSD, USDJPY, GBPUSD, USDCAD, USDSEK y
   USDCHF, leídos de la misma fuente. Con `--sin-dxy` se omite.
-- **Volumen.** Tanto el de MT5 como el de OANDA son de ticks, igual que el
-  de Dukascopy en el backtest.
+- **Volumen.** El de cTrader, MT5 y OANDA es de ticks, igual que el de
+  Dukascopy en el backtest.
 - **Cálculo en cada minuto.** Se recalcula el motor con los últimos 20 días
   (`--dias`).
 - **Límites de riesgo.** Los límites diarios y semanales (2 operaciones al
