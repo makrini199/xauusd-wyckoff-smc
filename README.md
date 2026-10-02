@@ -54,33 +54,59 @@ la decisión de entrar es tuya.
 | 🎯 TP1 | cerrar el 50% y mover el stop a break-even |
 | ✅/❌ Cierre | stop, trailing stop o take profit, con el resultado en R |
 
-### Puesta en marcha
+### Puesta en marcha en Windows con MetaTrader 5 (IC Markets)
 
 1. **Bot de Telegram.**
-   - En Telegram, habla con **@BotFather**, envía `/newbot` y copia el token.
-   - Escribe cualquier cosa a tu bot.
-   - Abre `https://api.telegram.org/bot<TOKEN>/getUpdates` y copia el número
-     de `"chat":{"id": ...}`.
-2. **Datos en vivo (OANDA).** Abre una cuenta demo gratuita en oanda.com. En
-   *Manage API Access*, genera un token. La cuenta demo basta: solo se leen
-   precios.
-3. **Credenciales.** Copia `.env.ejemplo` a `.env`, rellénalo y cárgalo:
-   ```bash
-   set -a; source .env; set +a
-   python -m xauusd telegram-prueba      # debe llegarte un mensaje
+   - Crea el bot con **@BotFather** (`/newbot`) y copia el token.
+   - Escribe "hola" a tu bot.
+   - Abre `https://api.telegram.org/bot<TOKEN>/getUpdates` y copia el
+     número de `"chat":{"id": ...}`: es tu chat id.
+2. **MetaTrader 5.**
+   - Instala MT5 de IC Markets y entra con tu cuenta. Una demo sirve.
+   - En *Herramientas → Opciones → Gráficos*, pon **Máx. barras en el
+     gráfico** en *Unlimited* (o al menos 100000).
+   - Déjalo abierto mientras funcionen las alertas.
+3. **Python.**
+   - Instala Python 3.12 desde python.org y marca **"Add python.exe to
+     PATH"** en el instalador.
+4. **El programa.**
+   - En GitHub, entra en el repo y pulsa **Code → Download ZIP**.
+   - Descomprímelo, por ejemplo en `C:\xauusd`.
+   - Abre esa carpeta, escribe `cmd` en la barra de direcciones del
+     explorador y pulsa Enter. En la ventana negra:
+     ```
+     pip install -r requirements.txt
+     ```
+5. **Credenciales.**
+   - Copia `.env.ejemplo` como `.env` en la misma carpeta.
+   - Pon tu `TELEGRAM_TOKEN` y tu `TELEGRAM_CHAT_ID`. El programa lo lee
+     solo.
+6. **Probar y arrancar:**
    ```
-4. **Arrancar:**
-   ```bash
-   python -m xauusd alertas --capital 100000
+   python -m xauusd telegram-prueba
+   python -m xauusd alertas --capital 10000
    ```
-   - Comprueba una vez por minuto, 5 s después del cierre de cada vela.
-   - La primera vez marca lo ya ocurrido como visto y no lo envía.
-   - Guarda las alertas enviadas en `alertas_estado.json` para no repetir
-     tras un reinicio.
+   También puedes hacer doble clic en `scripts\alertas.bat`; edítalo para
+   poner tu capital.
 
-Para dejarlo funcionando 24/5 sin tu ordenador, en un VPS, usa
-`scripts/xauusd-alertas.service` (las instrucciones están dentro del
-archivo).
+**Qué hace al arrancar:**
+- Comprueba una vez por minuto, 5 s después del cierre de cada vela.
+- La primera vez marca lo ya ocurrido como visto y no lo envía.
+- Guarda las alertas enviadas en `alertas_estado.json` para no repetir
+  tras un reinicio.
+
+**Hora del servidor.** MT5 da las velas en la hora del servidor del bróker
+(IC Markets: GMT+2 en invierno, GMT+3 en verano). El programa detecta el
+desfase con el último tick y lo pasa a UTC, porque las kill zones van en
+UTC. Si arrancas con el mercado cerrado, fíjalo con `--mt5-gmt 3` (o `2`).
+
+**Símbolos con sufijo.** Si en tu cuenta se llaman `XAUUSD.a` o similar, usa
+`--simbolo XAUUSD --mt5-sufijo .a`.
+
+**Otras fuentes.** Con `--fuente oanda` se usa la API de OANDA (`OANDA_TOKEN`
+en `.env`). Para un servidor Linux 24/5 sin Windows, la alternativa sería la
+API de cTrader (pendiente). Para un VPS con Windows sirve tal cual. El
+archivo `scripts/xauusd-alertas.service` es para la variante OANDA en Linux.
 
 ### Probar sin datos en vivo
 
@@ -94,11 +120,11 @@ python -m xauusd alertas --fuente csv --csv data/<oro>.csv --desde 2024-03-01 \
 
 ### Detalles
 
-- **Prueba 8 en vivo.** OANDA no cotiza el índice dólar. Se reconstruye con
-  la fórmula oficial del DXY a partir de EUR/USD, USD/JPY, GBP/USD, USD/CAD,
-  USD/SEK y USD/CHF. Con `--sin-dxy` se omite.
-- **Volumen.** El de OANDA es de ticks, igual que el de Dukascopy en el
-  backtest.
+- **Prueba 8 en vivo.** El índice dólar se reconstruye con la fórmula
+  oficial del DXY a partir de EURUSD, USDJPY, GBPUSD, USDCAD, USDSEK y
+  USDCHF, leídos de la misma fuente. Con `--sin-dxy` se omite.
+- **Volumen.** Tanto el de MT5 como el de OANDA son de ticks, igual que el
+  de Dukascopy en el backtest.
 - **Cálculo en cada minuto.** Se recalcula el motor con los últimos 20 días
   (`--dias`).
 - **Límites de riesgo.** Los límites diarios y semanales (2 operaciones al

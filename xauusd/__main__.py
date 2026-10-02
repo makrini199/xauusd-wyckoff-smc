@@ -30,13 +30,18 @@ def main(argv=None):
                    help="entrar con orden límite en el POI, sin esperar el mini BOS")
     b.add_argument("--graficos", type=int, default=50, help="máximo de operaciones a dibujar")
     al = sub.add_parser("alertas", help="vigila XAUUSD y envía alertas por Telegram")
-    al.add_argument("--fuente", choices=["oanda", "csv"], default="oanda")
+    al.add_argument("--fuente", choices=["mt5", "oanda", "csv"], default="mt5",
+                    help="mt5: MetaTrader 5 abierto en Windows (IC Markets); oanda; csv: reproducir histórico")
+    al.add_argument("--simbolo", default="XAUUSD", help="(mt5) símbolo del oro en tu bróker")
+    al.add_argument("--mt5-gmt", type=int, default=None,
+                    help="(mt5) horas de la hora del servidor respecto a UTC; por defecto se detecta")
+    al.add_argument("--mt5-sufijo", default="", help="(mt5) sufijo de los símbolos, p. ej. .a o .r")
     al.add_argument("--csv", help="(fuente csv) velas de 1 min para reproducir")
     al.add_argument("--dxy-csv", help="(fuente csv) índice dólar para la prueba 8")
     al.add_argument("--desde", help="(fuente csv) fecha desde la que reproducir")
     al.add_argument("--hasta", help="(fuente csv) fecha hasta la que reproducir")
     al.add_argument("--paso", default="1min", help="(fuente csv) avance del reloj en cada paso")
-    al.add_argument("--sin-dxy", action="store_true", help="(oanda) no calcular el DXY; prueba 8 no evaluable")
+    al.add_argument("--sin-dxy", action="store_true", help="(mt5/oanda) no calcular el DXY; prueba 8 no evaluable")
     al.add_argument("--simular", action="store_true", help="imprimir las alertas en pantalla en vez de Telegram")
     al.add_argument("--capital", type=float, help="capital para calcular el tamaño de posición")
     al.add_argument("--dias", type=int, default=20, help="días de historia que recalcula el motor")
@@ -83,6 +88,14 @@ def _alertas(a):
     if a.capital:
         cfg.initial_capital = a.capital
     sink = ConsoleSink() if a.simular else Telegram()
+    if a.fuente == "mt5":
+        from .mt5 import Mt5DxySource, Mt5Source, connect
+        mt5 = connect()
+        src = Mt5Source(a.simbolo + a.mt5_sufijo, a.mt5_gmt, mt5)
+        dxy = None if a.sin_dxy else Mt5DxySource(a.mt5_gmt, mt5, a.mt5_sufijo)
+        w = Watcher(src, sink, cfg, a.estado, a.dias, dxy_source=dxy)
+        w.step() if a.una_vez else w.loop()
+        return
     if a.fuente == "oanda":
         src = OandaSource()
         dxy = None if a.sin_dxy else OandaDxySource()
@@ -106,8 +119,24 @@ def _alertas(a):
             dxy.now = src.now
 
 
+def load_env(path: str = ".env"):
+    """Carga KEY=VALOR de un archivo .env sin pisar variables ya definidas."""
+    import os
+    from pathlib import Path
+    f = Path(path)
+    if not f.exists():
+        return
+    for line in f.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
 def run():
     from .telegram import TelegramError
+    load_env()
     try:
         main()
     except (TelegramError, RuntimeError) as e:

@@ -2,6 +2,7 @@
 
 - OANDA (v20 REST): cuenta demo gratuita, instrumento XAU_USD.
   Variables de entorno: OANDA_TOKEN y, opcional, OANDA_ENTORNO=practice|live.
+- MetaTrader 5: ver `mt5.py` (Windows, p. ej. IC Markets).
 - CSV: reproduce datos históricos avanzando el reloj, para probar las alertas.
 
 Todas devuelven solo velas cerradas, con índice UTC y columnas
